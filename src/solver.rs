@@ -2,9 +2,10 @@ use std::fs::File;
 use std::fmt;
 use std::io::{BufReader, BufRead};
 use std::ops::Not;
+use fnv::FnvHashSet;
 
 /// A literal consisting of a variable id and whether that variable is negated
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 struct Literal {
     var_id: usize,
     negated: bool,
@@ -35,6 +36,7 @@ type ParseResult = std::result::Result<Formula, String>;
 /// A Formula is a set of disjunctions (which are sets of literals)
 pub struct Formula {
     formula: Vec<Vec<Literal>>,
+    removed: FnvHashSet<*const Literal>,
     num_vars: usize,
 }
 
@@ -72,6 +74,7 @@ impl Formula {
         // Parse the variables
         let mut formula = Formula {
             formula: vec![Vec::new(); num_clauses],
+            removed: FnvHashSet::with_capacity_and_hasher(num_clauses, Default::default()),
             num_vars,
         };
         let vars: String = lines.map(|l| l.unwrap() + " ").collect();
@@ -94,11 +97,38 @@ impl Formula {
     }
 
     fn simplify(&mut self) {
-        // Add formula simplifications here
+        // Unit propagation
+        // TODO: Bench vs repeated loops
+        let mut changed = false;
+        let mut unit_lits = vec![];
+        for clause in self.formula.iter().filter(|c| !self.removed.contains(&c.as_ptr())) {
+            if clause.len() == 1 {
+                changed = true;
+                let lit = unsafe { clause.get_unchecked(0) };
+                unit_lits.push(*lit);
+            }
+        }
+        for lit in unit_lits {
+            'clauses: for clause in self.formula.iter_mut() {
+                if self.removed.contains(&clause.as_ptr()) {
+                    continue;
+                }
+                for l in clause.iter() {
+                    if *l == lit {
+                        self.removed.insert(clause.as_ptr());
+                        continue 'clauses;
+                    }
+                }
+                clause.remove_item(&!lit);
+            }
+        }
+        if changed {
+            self.simplify();
+        }
     }
 
     fn solved(&self, assignment: &Assignment) -> bool {
-        'outer: for disjunction in &self.formula {
+        'outer: for disjunction in self.formula.iter().filter(|c| !self.removed.contains(&c.as_ptr())) {
             for lit in disjunction {
                 if assignment.is_assigned(*lit) {
                     continue 'outer;
@@ -110,7 +140,7 @@ impl Formula {
     }
 
     fn unsolvable(&self, assignment: &Assignment) -> bool {
-        'outer: for disjunction in &self.formula {
+        'outer: for disjunction in self.formula.iter().filter(|c| !self.removed.contains(&c.as_ptr())) {
             for lit in disjunction {
                 if assignment.is_not_negated(*lit) {
                     continue 'outer;
@@ -126,7 +156,7 @@ impl Formula {
         let mut assignment = Assignment::new(self.num_vars);
 
         fn dpll(formula: &mut Formula, assignment: &mut Assignment) -> bool {
-            formula.simplify();
+            //formula.simplify();
             if formula.solved(&assignment) {
                 true
             } else if formula.unsolvable(&assignment) {

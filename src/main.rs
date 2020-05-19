@@ -1,3 +1,5 @@
+#![feature(vec_remove_item)]
+
 use std::env;
 use std::fs::File;
 use solver::Formula;
