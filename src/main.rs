@@ -1,11 +1,9 @@
-#![feature(vec_remove_item)]
-
 use std::env;
 use std::fs::File;
-use solver::Formula;
+use formula::Formula;
 use std::time::Instant;
 
-mod solver;
+mod formula;
 
 fn main() {
     let file_name = env::args().nth(1)
