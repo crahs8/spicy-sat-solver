@@ -1,13 +1,10 @@
 [package]
-name = "simple-sat-solver"
+name = "spicy-sat-solver"
 version = "0.1.0"
 authors = ["Lasse <lasse.moeldrup@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[build]
-rustflags = "-C target-cpu=native"
-
-[dependencies]
-fnv = "1.0.7"
+[profile.release]
+lto = true

@@ -5,16 +5,15 @@ use std::time::Instant;
 
 mod formula;
 
-fn main() {
+fn main() -> Result<(), String> {
     let file_name = env::args().nth(1)
-        .expect("Please provide an input file");
+        .ok_or("Please provide an input file")?;
     let file = File::open(file_name)
-        .expect("Failed to open file");
+        .map_err(|_| "Failed to open file")?;
 
     let start = Instant::now();
 
-    let formula = Formula::parse_dimacs(file)
-        .unwrap_or_else(|msg| panic!("Couldn't parse file: {}", msg));
+    let formula = Formula::parse_dimacs(file)?;
     match formula.solve() {
         Some(a) => println!("{}", a),
         None => println!("UNSATISFIABLE"),
@@ -22,4 +21,6 @@ fn main() {
 
     let duration = start.elapsed();
     println!("Time elapsed: {:?}", duration);
+
+    Ok(())
 }

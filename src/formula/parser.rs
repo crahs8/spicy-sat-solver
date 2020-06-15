@@ -35,6 +35,7 @@ impl Formula {
             clauses: Vec::with_capacity(num_clauses),
             assignment: Assignment::new(num_vars),
             clause_indices: vec![vec![]; num_vars],
+            assign_history: vec![],
             remaining_clauses: num_clauses,
             unsolvable: false,
             next_literal_id: 0
@@ -43,20 +44,42 @@ impl Formula {
         let pos = buf.position() as usize;
         let buf = &buf.into_inner()[pos..];
         let mut clause_iter = buf.trim_end().split(" 0");
-        for (clause, clause_str) in (&mut clause_iter).take(num_clauses).enumerate() {
-            formula.clauses.push((Clause::new(), false));
+
+        'outer: for (clause_idx, clause_str) in (&mut clause_iter).take(num_clauses).enumerate() {
+            let mut clause = Clause::new();
+
             for v in clause_str.split_whitespace() {
                 let v: isize = v.parse().map_err(|_| format!("Illegal variable '{}'", v))?;
                 let lit = Literal::from_var(v);
-                formula.clauses[clause].0.add(lit);
-                formula.clause_indices[lit.id].push((clause, lit.negated));
+                // Check if we have a | !a, which we rely upon not existing in the solver
+                if clause.0.contains(&!lit) {
+                    formula.remaining_clauses -= 1;
+                    continue 'outer;
+                }
+                clause.add(lit);
             }
+
+            for lit in &clause.0 {
+                formula.clause_indices[lit.id].push((clause_idx, lit.negated));
+            }
+            formula.clauses.push((clause, false));
         }
 
         match clause_iter.next() {
-            Some("") => Ok(formula),
+            Some("") => Ok(formula.simplify()),
             None => Err("Not enough clauses".to_owned()),
             _ => Err("Too many clauses".to_owned()),
         }
+    }
+
+    /// Unit propagation
+    fn simplify(mut self) -> Self {
+        for i in 0..self.clauses.len() {
+            if let Some(l) = self.clauses[i].0.get_unit_literal() {
+                self.assign(l);
+            }
+        }
+
+        self
     }
 }
