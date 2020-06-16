@@ -1,9 +1,9 @@
 use std::env;
 use std::fs::File;
-use formula::Formula;
+use solver::Formula;
 use std::time::Instant;
 
-mod formula;
+mod solver;
 
 fn main() -> Result<(), String> {
     let file_name = env::args().nth(1)
